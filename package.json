@@ -1,0 +1,52 @@
+{
+  "name": "tallyca",
+  "version": "1.0.0",
+  "description": "CLI to generate GST-compliant PDFs from raw WhatsApp/Telegram invoice text — no intermediate JSON file needed.",
+  "type": "module",
+  "bin": {
+    "tallyca": "./bin/run.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && shx mkdir -p dist/templates && shx cp src/templates/*.html dist/templates/",
+    "postpack": "shx rm -rf oclif.manifest.json",
+    "prepack": "npm run build && oclif manifest",
+    "check": "tsc --noEmit"
+  },
+  "oclif": {
+    "bin": "tallyca",
+    "dirname": "tallyca",
+    "commands": "./dist/commands",
+    "plugins": [],
+    "topicSeparator": ":",
+    "topics": {
+      "generate": {
+        "description": "Generate PDFs from invoice data or raw text."
+      }
+    }
+  },
+  "files": [
+    "/bin",
+    "/dist",
+    "/src/templates",
+    "/oclif.manifest.json"
+  ],
+  "dependencies": {
+    "@oclif/core": "^4.0.31",
+    "handlebars": "^4.7.8",
+    "playwright": "^1.56.1"
+  },
+  "devDependencies": {
+    "@oclif/prettier-config": "^0.2.1",
+    "@types/handlebars": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "oclif": "^4.15.0",
+    "shx": "^0.3.4",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["oclif", "tally", "invoice", "pdf", "gst", "whatsapp"],
+  "license": "MIT"
+}

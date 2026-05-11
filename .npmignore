@@ -1,0 +1,49 @@
+# Development files
+src/
+test/
+tests/
+*.test.ts
+*.test.js
+.env
+.env.*
+
+# Build artifacts
+tsconfig.json
+.eslintrc
+.eslintrc.*
+
+# Version control
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencies (included in package.json)
+node_modules/
+
+# Coverage
+coverage/
+.coverage/
+.nyc_output/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Documentation source
+docs/
+*.md.backup 
