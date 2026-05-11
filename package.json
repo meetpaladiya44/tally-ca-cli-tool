@@ -1,6 +1,6 @@
 {
   "name": "tallyca",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI to generate GST-compliant PDFs from raw WhatsApp/Telegram invoice text — no intermediate JSON file needed.",
   "type": "module",
   "bin": {
@@ -47,6 +47,13 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["oclif", "tally", "invoice", "pdf", "gst", "whatsapp"],
+  "keywords": [
+    "oclif",
+    "tally",
+    "invoice",
+    "pdf",
+    "gst",
+    "whatsapp"
+  ],
   "license": "MIT"
 }
