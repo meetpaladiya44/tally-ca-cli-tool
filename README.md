@@ -8,7 +8,57 @@ Generate **GST-style invoice PDFs** (or generic PDFs) directly from raw WhatsApp
 npm install -g tallyca
 ```
 
-> Note: This package uses Playwright (Chromium) to render PDFs. The first install may take longer due to browser download.
+> Note: By default `tallyca` tries **Playwright + Chromium** first (best match to the HTML templates). If Chromium cannot start (common on minimal Linux/AWS images missing system libraries), it **automatically falls back** to **pdfmake** (pure JavaScript, no browser). You can force the backend — see [PDF backend](#pdf-backend-tallyca_pdf_backend).
+
+### AWS / Linux: Chromium system libraries
+
+If Playwright fails with errors like `libatk-1.0.so.0` or similar, install OS packages for headless Chromium, then reinstall the browser:
+
+**Amazon Linux 2 / AL2023**
+
+```bash
+sudo yum install -y \
+  alsa-lib atk at-spi2-atk cups-libs libdrm libXcomposite \
+  libXdamage libXrandr mesa-libgbm pango gtk3
+npx playwright install chromium
+npx playwright install-deps chromium
+```
+
+**Ubuntu / Debian**
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+  libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
+  libpango-1.0-0 libcairo2 libasound2 libatspi2.0-0
+npx playwright install chromium
+npx playwright install-deps chromium
+```
+
+If you cannot install these packages (e.g. locked-down serverless), rely on the built-in **pdfmake** fallback or set `TALLYCA_PDF_BACKEND=pdfmake`.
+
+### PDF backend (`TALLYCA_PDF_BACKEND`)
+
+| Value | Behavior |
+|-------|----------|
+| `auto` (default) | Try Playwright first; on typical Chromium launch failures, fall back to pdfmake |
+| `playwright` | HTML templates + Playwright only (fails if Chromium unavailable) |
+| `pdfmake` | Skip Playwright; generate PDF with pdfmake (no Chromium) |
+
+Example:
+
+```bash
+export TALLYCA_PDF_BACKEND=pdfmake
+tallyca from-text --company "ABC Traders" --output invoice.pdf --text "Party Name: ..."
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:TALLYCA_PDF_BACKEND = "pdfmake"
+tallyca from-text ...
+```
 
 ## Commands
 
