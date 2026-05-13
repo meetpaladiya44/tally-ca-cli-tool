@@ -1,6 +1,6 @@
 {
   "name": "tallyca",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "CLI to generate GST-compliant PDFs from raw WhatsApp/Telegram invoice text — no intermediate JSON file needed.",
   "type": "module",
   "bin": {
