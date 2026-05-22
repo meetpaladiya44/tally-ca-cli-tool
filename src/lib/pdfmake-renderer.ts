@@ -8,7 +8,7 @@ import {mkdir} from 'node:fs/promises'
 import path from 'node:path'
 import {createRequire} from 'node:module'
 import type {Content, StyleDictionary, TableCell, TDocumentDefinitions} from 'pdfmake/interfaces'
-import type {InvoiceData, GenericData, InvoiceItem} from './parser.js'
+import type {GenericData} from './parser.js'
 
 const require = createRequire(import.meta.url)
 
@@ -63,7 +63,10 @@ export function formatInr(value: string | number | undefined): string {
   return new Intl.NumberFormat('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(num)
 }
 
-export async function renderInvoicePdfMake(data: InvoiceData, outputPath: string): Promise<void> {
+export async function renderInvoicePdfMake(
+  data: Record<string, unknown>,
+  outputPath: string,
+): Promise<void> {
   await mkdir(path.dirname(path.resolve(outputPath)), {recursive: true})
   const doc = buildInvoiceDoc(data)
   await writePdfToFile(doc, outputPath)
@@ -75,7 +78,19 @@ export async function renderGenericPdfMake(data: GenericData, outputPath: string
   await writePdfToFile(doc, outputPath)
 }
 
-function buildInvoiceDoc(data: InvoiceData): TDocumentDefinitions {
+function buildInvoiceDoc(data: Record<string, unknown>): TDocumentDefinitions {
+  const company = data.company as string | undefined
+  const party = (data.party ?? data.partyName) as string | undefined
+  const invoiceNo = data.invoiceNo as string | undefined
+  const date = data.date as string | undefined
+  const voucherClass = data.voucherClass as string | undefined
+  const narration = data.narration as string | undefined
+  const billingAddress = data.billingAddress as string | undefined
+  const customerGstin = data.customerGstin as string | undefined
+  const placeOfSupply = data.placeOfSupply as string | undefined
+  const reverseCharge = data.reverseCharge as string | undefined
+  const items = (data.items as Array<Record<string, string>>) ?? []
+  const totals = (data.totals as Record<string, unknown>) ?? {}
   const generatedAt = new Date().toLocaleString('en-IN')
   const styles: StyleDictionary = {
     company: {fontSize: 18, bold: true, color: '#1a237e'},
@@ -121,8 +136,8 @@ function buildInvoiceDoc(data: InvoiceData): TDocumentDefinitions {
       layout: defaultTableLayout(),
     },
   ]
-  if (data.voucherClass) {
-    headerRightStack.push({text: data.voucherClass, style: 'voucherPill'})
+  if (voucherClass) {
+    headerRightStack.push({text: voucherClass, style: 'voucherPill'})
   }
 
   const billToStack: Content[] = [
@@ -130,37 +145,69 @@ function buildInvoiceDoc(data: InvoiceData): TDocumentDefinitions {
     {
       columns: [
         {width: 'auto', text: 'Party', style: 'metaKey'},
-        {width: '*', text: data.party ?? '—', style: 'metaVal', alignment: 'right'},
+        {width: '*', text: party ?? '—', style: 'metaVal', alignment: 'right'},
       ],
     },
   ]
+  if (billingAddress) {
+    billToStack.push({
+      text: billingAddress,
+      fontSize: 8,
+      color: '#555555',
+      margin: [0, 4, 0, 0],
+    })
+  }
+  if (customerGstin) {
+    billToStack.push({
+      columns: [
+        {width: 'auto', text: 'GSTIN', style: 'metaKey'},
+        {width: '*', text: customerGstin, style: 'metaVal', alignment: 'right'},
+      ],
+    })
+  }
 
   const invDetailsStack: Content[] = [
     {text: 'INVOICE DETAILS', style: 'boxTitle', margin: [0, 0, 0, 4]},
   ]
-  if (data.invoiceNo) {
+  if (invoiceNo) {
     invDetailsStack.push({
       columns: [
         {width: 'auto', text: 'Invoice No.', style: 'metaKey'},
-        {width: '*', text: data.invoiceNo, style: 'metaVal', alignment: 'right'},
+        {width: '*', text: invoiceNo, style: 'metaVal', alignment: 'right'},
       ],
       margin: [0, 0, 0, 2],
     })
   }
 
-  if (data.date) {
+  if (date) {
     invDetailsStack.push({
       columns: [
         {width: 'auto', text: 'Date', style: 'metaKey'},
-        {width: '*', text: data.date, style: 'metaVal', alignment: 'right'},
+        {width: '*', text: date, style: 'metaVal', alignment: 'right'},
       ],
+      margin: [0, 0, 0, 2],
     })
   }
+  if (placeOfSupply) {
+    invDetailsStack.push({
+      columns: [
+        {width: 'auto', text: 'Place of Supply', style: 'metaKey'},
+        {width: '*', text: placeOfSupply, style: 'metaVal', alignment: 'right'},
+      ],
+      margin: [0, 0, 0, 2],
+    })
+  }
+  invDetailsStack.push({
+    columns: [
+      {width: 'auto', text: 'Reverse Charge', style: 'metaKey'},
+      {width: '*', text: reverseCharge ?? 'No', style: 'metaVal', alignment: 'right'},
+    ],
+  })
 
   const content: Content[] = [
     {
       columns: [
-        {width: '*', text: data.company ?? '—', style: 'company'},
+        {width: '*', text: company ?? '—', style: 'company'},
         {width: 'auto', stack: headerRightStack},
       ],
       margin: [0, 0, 0, 8],
@@ -208,14 +255,14 @@ function buildInvoiceDoc(data: InvoiceData): TDocumentDefinitions {
     },
   ]
 
-  if (data.narration) {
+  if (narration) {
     content.push({
       table: {
         widths: ['*'],
         body: [
           [
             {
-              stack: [{text: [{text: 'Narration: ', bold: true}, {text: data.narration}]}],
+              stack: [{text: [{text: 'Narration: ', bold: true}, {text: narration}]}],
               fillColor: '#f7f8fd',
               margin: [6, 6, 6, 6],
               border: [true, true, true, true],
@@ -230,9 +277,9 @@ function buildInvoiceDoc(data: InvoiceData): TDocumentDefinitions {
   }
 
   content.push({text: '', margin: [0, 6, 0, 0]})
-  content.push(itemsTable(data.items))
+  content.push(itemsTable(items))
   content.push({text: '', margin: [0, 8, 0, 0]})
-  content.push(totalsBlock(data))
+  content.push(totalsBlock(totals))
   content.push({text: '', margin: [0, 24, 0, 0]})
   content.push({
     columns: [
@@ -243,7 +290,7 @@ function buildInvoiceDoc(data: InvoiceData): TDocumentDefinitions {
           {canvas: [{type: 'line', x1: 0, y1: 0, x2: 140, y2: 0, lineWidth: 1, lineColor: '#aaaaaa'}]},
           {text: 'Authorised Signatory', fontSize: 9, color: '#555555', margin: [0, 4, 0, 0], alignment: 'right'},
           {
-            text: data.company ?? '',
+            text: company ?? '',
             fontSize: 8,
             color: '#999999',
             margin: [0, 2, 0, 0],
@@ -292,15 +339,16 @@ function boxLayout() {
   }
 }
 
-function itemsTable(items: InvoiceItem[]): Content {
+function itemsTable(items: Array<Record<string, string>>): Content {
   const headerRow: TableCell[] = [
     {text: '#', style: 'th', fillColor: '#1a237e'},
     {text: 'Description', style: 'th', fillColor: '#1a237e'},
     {text: 'HSN', style: 'th', fillColor: '#1a237e'},
     {text: 'Qty', style: 'th', alignment: 'right', fillColor: '#1a237e'},
-    {text: 'Rate (Rs)', style: 'th', alignment: 'right', fillColor: '#1a237e'},
+    {text: 'Unit', style: 'th', alignment: 'right', fillColor: '#1a237e'},
+    {text: 'Rate', style: 'th', alignment: 'right', fillColor: '#1a237e'},
     {text: 'Tax %', style: 'th', alignment: 'right', fillColor: '#1a237e'},
-    {text: 'Amount (Rs)', style: 'th', alignment: 'right', fillColor: '#1a237e'},
+    {text: 'Amount', style: 'th', alignment: 'right', fillColor: '#1a237e'},
   ]
 
   const body: TableCell[][] = [headerRow]
@@ -309,11 +357,12 @@ function itemsTable(items: InvoiceItem[]): Content {
     body.push([
       {
         text: 'No items',
-        colSpan: 7,
+        colSpan: 8,
         alignment: 'center',
         color: '#aaaaaa',
         margin: [0, 12, 0, 12],
       },
+      {},
       {},
       {},
       {},
@@ -326,11 +375,12 @@ function itemsTable(items: InvoiceItem[]): Content {
       const fill = idx % 2 === 0 ? '#f7f8fd' : '#ffffff'
       body.push([
         {text: String(idx + 1), style: 'td', fillColor: fill},
-        {text: it.description, style: 'td', fillColor: fill},
+        {text: it.description ?? '', style: 'td', fillColor: fill},
         {text: it.hsn ?? '—', style: 'td', fillColor: fill},
-        {text: it.qty, style: 'td', alignment: 'right', fillColor: fill},
-        {text: it.rate, style: 'td', alignment: 'right', fillColor: fill},
-        {text: it.taxRate, style: 'td', alignment: 'right', fillColor: fill},
+        {text: it.qty ?? '', style: 'td', alignment: 'right', fillColor: fill},
+        {text: it.unit ?? '', style: 'td', alignment: 'right', fillColor: fill},
+        {text: it.rate ?? '', style: 'td', alignment: 'right', fillColor: fill},
+        {text: it.taxRate ?? '', style: 'td', alignment: 'right', fillColor: fill},
         {text: formatInr(it.taxable), style: 'td', alignment: 'right', fillColor: fill},
       ])
     })
@@ -339,7 +389,7 @@ function itemsTable(items: InvoiceItem[]): Content {
   return {
     table: {
       headerRows: 1,
-      widths: [22, '*', 52, 52, 58, 38, 62],
+      widths: [20, '*', 48, 36, 36, 48, 32, 58],
       dontBreakRows: true,
       body,
     },
@@ -356,30 +406,57 @@ function itemsTable(items: InvoiceItem[]): Content {
   }
 }
 
-function totalsBlock(data: InvoiceData): Content {
+function totalsBlock(totals: Record<string, unknown>): Content {
   const inner: Content[] = []
 
-  if (data.totals.taxable) {
+  if (totals.taxable) {
     inner.push({
       columns: [
         {width: '*', text: 'Taxable Amount', fontSize: 9},
-        {width: 'auto', text: `Rs ${formatInr(data.totals.taxable)}`, fontSize: 9, alignment: 'right'},
+        {width: 'auto', text: `Rs ${formatInr(String(totals.taxable))}`, fontSize: 9, alignment: 'right'},
       ],
       margin: [8, 6, 8, 4],
     })
   }
 
-  if (data.totals.tax) {
+  if (totals.showDiscount) {
     inner.push({
       columns: [
-        {width: '*', text: `GST (${data.totals.tax})`, fontSize: 9},
-        {width: 'auto', text: '—', fontSize: 9, alignment: 'right'},
+        {width: '*', text: 'Discount', fontSize: 9},
+        {width: 'auto', text: `Rs ${formatInr(String(totals.discount))}`, fontSize: 9, alignment: 'right'},
       ],
-      margin: [8, 0, 8, 6],
+      margin: [8, 0, 8, 4],
     })
   }
 
-  const grand = data.totals.grandTotal ?? data.totals.taxable ?? '0'
+  if (totals.showCgstSgst) {
+    inner.push({
+      columns: [
+        {width: '*', text: 'CGST', fontSize: 9},
+        {width: 'auto', text: `Rs ${formatInr(String(totals.cgst))}`, fontSize: 9, alignment: 'right'},
+      ],
+      margin: [8, 0, 8, 2],
+    })
+    inner.push({
+      columns: [
+        {width: '*', text: 'SGST', fontSize: 9},
+        {width: 'auto', text: `Rs ${formatInr(String(totals.sgst))}`, fontSize: 9, alignment: 'right'},
+      ],
+      margin: [8, 0, 8, 4],
+    })
+  }
+
+  if (totals.showIgst) {
+    inner.push({
+      columns: [
+        {width: '*', text: 'IGST', fontSize: 9},
+        {width: 'auto', text: `Rs ${formatInr(String(totals.igst))}`, fontSize: 9, alignment: 'right'},
+      ],
+      margin: [8, 0, 8, 4],
+    })
+  }
+
+  const grand = String(totals.grandTotal ?? totals.taxable ?? '0')
 
   inner.push({
     table: {

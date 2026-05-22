@@ -3,7 +3,7 @@ import path from 'node:path'
 import {chromium} from 'playwright'
 import {renderHtml} from './templates.js'
 import {renderGenericPdfMake, renderInvoicePdfMake} from './pdfmake-renderer.js'
-import type {InvoiceData, GenericData} from './parser.js'
+import type {GenericData} from './parser.js'
 
 export interface RenderOptions {
   outputPath: string
@@ -45,7 +45,10 @@ export function isLikelyPlaywrightFailure(err: unknown): boolean {
 
 // ─── Invoice PDF ──────────────────────────────────────────────────────────────
 
-export async function renderInvoicePdf(data: InvoiceData, opts: RenderOptions): Promise<void> {
+export async function renderInvoicePdf(
+  data: Record<string, unknown>,
+  opts: RenderOptions,
+): Promise<void> {
   const backend = getPdfBackend()
 
   if (backend === 'pdfmake') {
@@ -75,17 +78,8 @@ export async function renderInvoicePdf(data: InvoiceData, opts: RenderOptions): 
   }
 }
 
-async function renderInvoicePlaywright(data: InvoiceData, outputPath: string): Promise<void> {
-  const html = await renderHtml('invoice', {
-    company: data.company,
-    party: data.party,
-    invoiceNo: data.invoiceNo,
-    date: data.date,
-    voucherClass: data.voucherClass,
-    items: data.items,
-    totals: data.totals,
-    narration: data.narration,
-  })
+async function renderInvoicePlaywright(data: Record<string, unknown>, outputPath: string): Promise<void> {
+  const html = await renderHtml('invoice', data)
   await writePdfHtml(html, outputPath)
 }
 

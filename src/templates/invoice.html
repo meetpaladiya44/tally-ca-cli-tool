@@ -2,217 +2,70 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tax Invoice — {{invoiceNo}}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 11px;
-      color: #1a1a1a;
-      background: #fff;
-    }
-
-    .page {
-      width: 100%;
-      padding: 4mm;
-    }
-
-    /* ── Header ── */
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #1a1a1a; }
+    .page { width: 100%; padding: 4mm; }
     .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      border-bottom: 2px solid #1a237e;
-      padding-bottom: 8px;
-      margin-bottom: 10px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      border-bottom: 2px solid #1a237e; padding-bottom: 8px; margin-bottom: 10px;
     }
-
-    .company-block h1 {
-      font-size: 20px;
-      font-weight: 700;
-      color: #1a237e;
-      letter-spacing: 0.5px;
-    }
-
-    .doc-type {
-      text-align: right;
-    }
-
+    .company-block h1 { font-size: 20px; font-weight: 700; color: #1a237e; }
+    .doc-type { text-align: right; }
     .doc-type .label {
-      font-size: 14px;
-      font-weight: 700;
-      color: #1a237e;
-      border: 2px solid #1a237e;
-      padding: 3px 10px;
-      display: inline-block;
-      letter-spacing: 1px;
+      font-size: 14px; font-weight: 700; color: #1a237e;
+      border: 2px solid #1a237e; padding: 3px 10px; display: inline-block;
     }
-
-    /* ── Meta grid ── */
-    .meta-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .meta-box {
-      border: 1px solid #dde1f0;
-      border-radius: 4px;
-      padding: 8px 10px;
-      background: #f7f8fd;
-    }
-
-    .meta-box .box-title {
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      color: #5c6bc0;
-      letter-spacing: 0.8px;
-      margin-bottom: 4px;
-      border-bottom: 1px solid #dde1f0;
-      padding-bottom: 3px;
-    }
-
-    .meta-box .row {
-      display: flex;
-      justify-content: space-between;
-      padding: 2px 0;
-    }
-
-    .meta-box .row .key {
-      color: #666;
-      font-weight: 500;
-    }
-
-    .meta-box .row .val {
-      font-weight: 600;
-      text-align: right;
-    }
-
-    /* ── Items table ── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 12px;
-      font-size: 10.5px;
-    }
-
-    thead tr {
-      background: #1a237e;
-      color: #fff;
-    }
-
-    thead th {
-      padding: 7px 8px;
-      text-align: left;
-      font-weight: 600;
-      letter-spacing: 0.4px;
-    }
-
-    thead th.num { text-align: right; }
-
-    tbody tr:nth-child(even) { background: #f7f8fd; }
-    tbody tr:hover { background: #eef0fb; }
-
-    tbody td {
-      padding: 6px 8px;
-      border-bottom: 1px solid #e8eaf6;
-      vertical-align: top;
-    }
-
-    tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
-
-    /* ── Totals ── */
-    .totals-row {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 12px;
-    }
-
-    .totals-table {
-      width: 260px;
-      border: 1px solid #dde1f0;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    .totals-table .t-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 10px;
-      border-bottom: 1px solid #eee;
-    }
-
-    .totals-table .t-row:last-child {
-      border-bottom: none;
-      background: #1a237e;
-      color: #fff;
-      font-weight: 700;
-      font-size: 12px;
-    }
-
-    .totals-table .t-row .t-key { color: inherit; }
-    .totals-table .t-row .t-val { font-variant-numeric: tabular-nums; }
-
-    /* ── Voucher class badge ── */
     .vc-badge {
-      display: inline-block;
-      background: #e8eaf6;
-      color: #3949ab;
-      font-size: 9px;
-      font-weight: 600;
-      padding: 2px 7px;
-      border-radius: 10px;
-      border: 1px solid #c5cae9;
-      margin-top: 4px;
+      display: inline-block; background: #e8eaf6; color: #3949ab;
+      font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 10px; margin-top: 4px;
     }
-
-    /* ── Narration ── */
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .meta-box {
+      border: 1px solid #dde1f0; border-radius: 4px; padding: 8px 10px; background: #f7f8fd;
+    }
+    .meta-box .box-title {
+      font-size: 9px; font-weight: 600; text-transform: uppercase; color: #5c6bc0;
+      margin-bottom: 4px; border-bottom: 1px solid #dde1f0; padding-bottom: 3px;
+    }
+    .meta-box .row { display: flex; justify-content: space-between; padding: 2px 0; }
+    .meta-box .key { color: #666; font-weight: 500; }
+    .meta-box .val { font-weight: 600; text-align: right; max-width: 60%; }
+    .addr { font-size: 9px; color: #555; margin-top: 4px; line-height: 1.4; }
     .narration {
-      font-size: 10px;
-      color: #555;
-      border-left: 3px solid #c5cae9;
-      padding: 4px 8px;
-      margin-bottom: 12px;
-      background: #f7f8fd;
-      border-radius: 0 4px 4px 0;
+      font-size: 10px; color: #555; border-left: 3px solid #c5cae9;
+      padding: 4px 8px; margin-bottom: 12px; background: #f7f8fd;
     }
-
-    /* ── Footer ── */
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10px; }
+    thead tr { background: #1a237e; color: #fff; }
+    thead th { padding: 7px 6px; text-align: left; font-weight: 600; }
+    thead th.num { text-align: right; }
+    tbody td { padding: 6px; border-bottom: 1px solid #e8eaf6; vertical-align: top; }
+    tbody tr:nth-child(even) { background: #f7f8fd; }
+    tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .totals-row { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+    .totals-table { width: 280px; border: 1px solid #dde1f0; border-radius: 4px; overflow: hidden; }
+    .totals-table .t-row {
+      display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #eee;
+    }
+    .totals-table .t-row.grand {
+      background: #1a237e; color: #fff; font-weight: 700; font-size: 12px; border-bottom: none;
+    }
+    .sig-block { text-align: right; margin-top: 28px; font-size: 10px; color: #555; }
+    .sig-block .line { border-top: 1px solid #aaa; width: 140px; margin-left: auto; margin-bottom: 3px; }
     .footer {
-      border-top: 1px solid #dde1f0;
-      padding-top: 6px;
-      display: flex;
-      justify-content: space-between;
-      font-size: 9px;
-      color: #999;
-    }
-
-    .sig-block {
-      text-align: right;
-      margin-top: 30px;
-      font-size: 10px;
-      color: #555;
-    }
-
-    .sig-block .line {
-      border-top: 1px solid #aaa;
-      width: 140px;
-      margin-left: auto;
-      margin-bottom: 3px;
+      border-top: 1px solid #dde1f0; padding-top: 6px; margin-top: 12px;
+      display: flex; justify-content: space-between; font-size: 9px; color: #999;
     }
   </style>
 </head>
 <body>
 <div class="page">
-
-  <!-- Header -->
   <div class="header">
     <div class="company-block">
       <h1>{{#if company}}{{company}}{{else}}—{{/if}}</h1>
+      {{#if companyGstin}}<div style="font-size:9px;color:#666;margin-top:2px;">GSTIN: {{companyGstin}}</div>{{/if}}
     </div>
     <div class="doc-type">
       <div class="label">TAX INVOICE</div>
@@ -220,51 +73,35 @@
     </div>
   </div>
 
-  <!-- Meta grid -->
   <div class="meta-grid">
-    <!-- Bill To -->
     <div class="meta-box">
       <div class="box-title">Bill To</div>
-      <div class="row">
-        <span class="key">Party</span>
-        <span class="val">{{#if party}}{{party}}{{else}}—{{/if}}</span>
-      </div>
+      <div class="row"><span class="key">Party</span><span class="val">{{#if party}}{{party}}{{else}}{{#if partyName}}{{partyName}}{{else}}—{{/if}}{{/if}}</span></div>
+      {{#if billingAddress}}<div class="addr">{{billingAddress}}</div>{{/if}}
+      {{#if customerGstin}}<div class="row" style="margin-top:4px;"><span class="key">GSTIN</span><span class="val">{{customerGstin}}</span></div>{{/if}}
     </div>
-
-    <!-- Invoice details -->
     <div class="meta-box">
       <div class="box-title">Invoice Details</div>
-      {{#if invoiceNo}}
-      <div class="row">
-        <span class="key">Invoice No.</span>
-        <span class="val">{{invoiceNo}}</span>
-      </div>
-      {{/if}}
-      {{#if date}}
-      <div class="row">
-        <span class="key">Date</span>
-        <span class="val">{{date}}</span>
-      </div>
-      {{/if}}
+      <div class="row"><span class="key">Invoice No.</span><span class="val">{{invoiceNo}}</span></div>
+      <div class="row"><span class="key">Date</span><span class="val">{{date}}</span></div>
+      <div class="row"><span class="key">Place of Supply</span><span class="val">{{placeOfSupply}}</span></div>
+      <div class="row"><span class="key">Reverse Charge</span><span class="val">{{reverseCharge}}</span></div>
     </div>
   </div>
 
-  <!-- Narration -->
-  {{#if narration}}
-  <div class="narration"><strong>Narration:</strong> {{narration}}</div>
-  {{/if}}
+  {{#if narration}}<div class="narration"><strong>Narration:</strong> {{narration}}</div>{{/if}}
 
-  <!-- Items table -->
   <table>
     <thead>
       <tr>
-        <th style="width:5%">#</th>
-        <th style="width:30%">Description</th>
-        <th style="width:12%">HSN</th>
-        <th style="width:12%" class="num">Qty</th>
-        <th style="width:13%" class="num">Rate (₹)</th>
-        <th style="width:10%" class="num">Tax %</th>
-        <th style="width:18%" class="num">Amount (₹)</th>
+        <th style="width:4%">#</th>
+        <th>Description</th>
+        <th style="width:10%">HSN</th>
+        <th class="num" style="width:8%">Qty</th>
+        <th class="num" style="width:8%">Unit</th>
+        <th class="num" style="width:10%">Rate</th>
+        <th class="num" style="width:7%">Tax%</th>
+        <th class="num" style="width:12%">Amount</th>
       </tr>
     </thead>
     <tbody>
@@ -274,54 +111,41 @@
         <td>{{description}}</td>
         <td>{{#if hsn}}{{hsn}}{{else}}—{{/if}}</td>
         <td class="num">{{qty}}</td>
+        <td class="num">{{unit}}</td>
         <td class="num">{{rate}}</td>
         <td class="num">{{taxRate}}</td>
         <td class="num">{{inr taxable}}</td>
-      </tr>
-      {{else}}
-      <tr>
-        <td colspan="7" style="text-align:center;color:#aaa;padding:16px;">No items</td>
       </tr>
       {{/each}}
     </tbody>
   </table>
 
-  <!-- Totals -->
   <div class="totals-row">
     <div class="totals-table">
-      {{#if totals.taxable}}
-      <div class="t-row">
-        <span class="t-key">Taxable Amount</span>
-        <span class="t-val">₹ {{inr totals.taxable}}</span>
-      </div>
+      <div class="t-row"><span>Taxable Amount</span><span>₹ {{inr totals.taxable}}</span></div>
+      {{#if totals.showDiscount}}
+      <div class="t-row"><span>Discount</span><span>₹ {{inr totals.discount}}</span></div>
       {{/if}}
-      {{#if totals.tax}}
-      <div class="t-row">
-        <span class="t-key">GST ({{totals.tax}})</span>
-        <span class="t-val">—</span>
-      </div>
+      {{#if totals.showCgstSgst}}
+      <div class="t-row"><span>CGST</span><span>₹ {{inr totals.cgst}}</span></div>
+      <div class="t-row"><span>SGST</span><span>₹ {{inr totals.sgst}}</span></div>
       {{/if}}
-      <div class="t-row">
-        <span class="t-key">Grand Total</span>
-        <span class="t-val">₹ {{inr (or totals.grandTotal totals.taxable)}}</span>
-      </div>
+      {{#if totals.showIgst}}
+      <div class="t-row"><span>IGST</span><span>₹ {{inr totals.igst}}</span></div>
+      {{/if}}
+      <div class="t-row grand"><span>Grand Total</span><span>₹ {{inr totals.grandTotal}}</span></div>
     </div>
   </div>
 
-  <!-- Signature -->
   <div class="sig-block">
     <div class="line"></div>
     <div>Authorised Signatory</div>
     <div style="color:#aaa;margin-top:2px;">{{#if company}}{{company}}{{/if}}</div>
   </div>
-
-  <!-- Footer -->
   <div class="footer">
-    <span>This is a computer-generated invoice.</span>
+    <span>Computer-generated tax invoice.</span>
     <span>Generated: {{generatedAt}}</span>
   </div>
-
 </div>
-
 </body>
 </html>

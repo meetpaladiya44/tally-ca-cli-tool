@@ -1,134 +1,131 @@
-import fs from 'node:fs/promises'
 import path from 'node:path'
 import {Command, Flags} from '@oclif/core'
 
-import {parseInvoiceText, parseItemFlag, safeFilename, type InvoiceData} from '../../lib/parser.js'
-import {renderInvoicePdf} from '../../lib/renderer.js'
+import {parseToSalesInput, salesInputFromFlags} from '../../lib/parser.js'
+import {runInvoicePdfPipeline} from '../../lib/invoice-pipeline.js'
+import {resolveUiOptions} from '../../lib/cli-ui.js'
+import type {SalesInvoiceInput} from '../../lib/invoice-schema.js'
 
 export default class GenerateInvoice extends Command {
   static override description =
-    'Generate a GST-compliant invoice PDF from raw WhatsApp/Telegram text or explicit flags.\n' +
-    'Pass the raw message with --text (or pipe via stdin) and let the parser do the rest.'
+    'Generate a GST sales invoice PDF with validated fields and auto GST calculation.\n' +
+    'Mandatory fields are validated in the CLI; missing fields return structured errors for agents.'
 
   static override examples = [
-    // Raw text — agent pipes the WhatsApp message
-    `$ echo "Party Name: Rajat Build\\nInvoice No.: 186\\nDate: 2/1/2026\\nItem: PPC Cement @ 18%\\nQty: 140 Bag\\nRate: 279.66/Bag\\nAmount: 39152.40" | <%= config.bin %> generate:invoice --company "Gokul Traders" --output invoice_186.pdf`,
-
-    // Inline --text flag
-    `$ <%= config.bin %> generate:invoice --text "Party Name: Rajat Build\\nInvoice No.: 186\\nDate: 2/1/2026\\nItem: PPC Cement @ 18%\\nQty: 140 Bag\\nRate: 279.66/Bag\\nHSN Code: 25322210\\nAmount: 39152.40" --output invoice_186.pdf`,
-
-    // Fully structured flags (when the agent already extracted all fields)
-    `$ <%= config.bin %> generate:invoice --company "Gokul Traders" --party "Rajat Build" --invoice-no 186 --date "2/1/2026" --item "PPC Cement|140 Bag|279.66|18%|25322210" --output invoice_186.pdf`,
+    `$ <%= config.bin %> generate:invoice --company "ABC Traders" --party-name "XYZ Build" --invoice-no 186 --date "2/1/2026" --place-of-supply "Uttar Pradesh" --item "PPC Cement" --qty 140 --unit Bag --rate 279.66 --hsn-code 25322210 --gst-rate 18 --output invoice_186.pdf`,
+    `$ <%= config.bin %> generate:invoice --text "Party Name: XYZ\\nInvoice No.: 186\\n..." --company "ABC" --output out.pdf --no-interactive --json-errors`,
+    `$ <%= config.bin %> generate:invoice --company "ABC" --party "XYZ" --invoice-no 186 --date "2/1/2026" --item "Cement|140 Bag|279.66|18|25322210" --place-of-supply "09" --output inv.pdf`,
   ]
 
   static override flags = {
-    // ── Input mode ───────────────────────────────────────────────────────────
     text: Flags.string({
       char: 't',
-      description:
-        'Raw invoice text (WhatsApp / Telegram message). Mutually exclusive with explicit data flags.',
-      exclusive: ['party', 'invoice-no'],
+      description: 'Raw invoice text (WhatsApp / Telegram). Parser extracts fields before validation.',
     }),
-
-    // ── Explicit structured flags ─────────────────────────────────────────────
-    company: Flags.string({
-      char: 'c',
-      description: 'Seller / company name printed on the invoice header.',
-    }),
-    party: Flags.string({
-      char: 'p',
-      description: 'Buyer / party name.',
-    }),
-    'invoice-no': Flags.string({
-      char: 'n',
-      description: 'Invoice number.',
-    }),
-    date: Flags.string({
-      char: 'd',
-      description: 'Invoice date (D/M/YYYY or DD-MM-YYYY).',
-    }),
+    company: Flags.string({char: 'c', description: 'Seller / company name on invoice header.'}),
+    'company-gstin': Flags.string({description: 'Seller GSTIN (used for CGST/SGST vs IGST).'}),
+    'seller-state': Flags.string({description: 'Seller state name or 2-digit code (if no company GSTIN).'}),
+    party: Flags.string({char: 'p', description: 'Buyer / party name (alias: --party-name).'}),
+    'party-name': Flags.string({description: 'Buyer / party name.'}),
+    'invoice-no': Flags.string({char: 'n', description: 'Invoice number (required).'}),
+    date: Flags.string({char: 'd', description: 'Invoice date D/M/YYYY (required).'}),
+    'place-of-supply': Flags.string({description: 'Place of supply — state name or code (required).'}),
+    'customer-gstin': Flags.string({description: 'Customer GSTIN (required when --b2b).'}),
+    'hsn-code': Flags.string({description: 'HSN / SAC code (required).'}),
     item: Flags.string({
       description:
-        'Item in pipe-separated format: "Description|Qty Unit|Rate|Tax%|HSN". Repeatable for multiple items.',
+        'Item description OR pipe format: Description|Qty Unit|Rate|Tax%|HSN. Repeatable.',
       multiple: true,
     }),
-    'voucher-class': Flags.string({
-      description: 'TallyPrime voucher class name (e.g. "Sales @ 18 %").',
+    qty: Flags.string({description: 'Quantity (required if not in --item pipe).'}),
+    rate: Flags.string({description: 'Rate per unit (required).'}),
+    unit: Flags.string({description: 'Unit e.g. Bag, Nos (required).'}),
+    'gst-rate': Flags.string({description: 'GST rate % e.g. 18 (required).'}),
+    'billing-address': Flags.string({description: 'Optional billing address.'}),
+    discount: Flags.string({description: 'Discount amount (default 0).'}),
+    'reverse-charge': Flags.string({description: 'Reverse charge: Yes or No (default No).'}),
+    b2b: Flags.boolean({description: 'B2B invoice — requires --customer-gstin.', default: false}),
+    'voucher-class': Flags.string({description: 'Optional Tally voucher class label.'}),
+    narration: Flags.string({description: 'Optional narration.'}),
+    output: Flags.string({char: 'o', description: 'Output PDF path.'}),
+    interactive: Flags.boolean({
+      char: 'i',
+      description: 'Prompt for missing required fields (TTY only).',
+      default: false,
     }),
-    narration: Flags.string({
-      description: 'Optional narration / note appended to the invoice.',
+    'no-interactive': Flags.boolean({
+      description: 'Never prompt — for OpenClaw/agents (default when non-TTY).',
+      default: false,
     }),
-
-    // ── Output ───────────────────────────────────────────────────────────────
-    output: Flags.string({
-      char: 'o',
-      description: 'Output PDF file path. Defaults to auto-generated name.',
+    'json-errors': Flags.boolean({
+      description: 'Validation errors as JSON on stderr (for agents).',
+      default: false,
     }),
+    'no-ui': Flags.boolean({description: 'Disable chalk/spinner/progress (plain logs).', default: false}),
   }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(GenerateInvoice)
+    const ui = resolveUiOptions(flags)
 
-    let data: InvoiceData
+    let input: SalesInvoiceInput
 
-    // Whether the caller provided enough structured flags to skip text parsing
-    const hasStructuredInput = Boolean(
-      flags.party ?? flags['invoice-no'] ?? flags.date ?? flags.item?.length,
+    const itemFlag = flags.item
+    const hasItems = Array.isArray(itemFlag) ? itemFlag.length > 0 : Boolean(itemFlag)
+    const hasStructured = Boolean(
+      flags['invoice-no'] ??
+        flags.date ??
+        flags['party-name'] ??
+        flags.party ??
+        hasItems ??
+        flags.qty,
     )
 
     if (flags.text) {
-      // ── Mode 1: Raw text from --text flag ──────────────────────────────────
-      data = parseInvoiceText(flags.text)
-      if (flags.company) data.company = flags.company
-    } else if (hasStructuredInput) {
-      // ── Mode 2: Fully structured flags ─────────────────────────────────────
-      data = buildFromFlags(flags)
+      input = parseToSalesInput(flags.text)
+      if (flags.company) input.company = flags.company
+      input = mergeFlagOverrides(input, flags)
+    } else if (hasStructured) {
+      input = salesInputFromFlags(flags as Record<string, unknown>)
     } else {
-      // ── Mode 3: Read from stdin (piped) ────────────────────────────────────
       const stdinText = await readStdin()
       if (!stdinText) {
+        if (ui.jsonErrors) {
+          console.error(
+            JSON.stringify({
+              error: 'validation',
+              message: 'No input provided',
+              missing: ['invoice-no', 'date', 'party-name', 'place-of-supply', 'item', 'qty', 'rate', 'unit', 'gst-rate', 'hsn-code'],
+              warnings: [],
+            }),
+          )
+          process.exit(2)
+        }
         this.error(
-          'No input provided. Use --text "...", pipe text via stdin, or pass structured flags (--party, --invoice-no, --item, ...).',
+          'No input provided. Use --text, pipe stdin, or pass structured flags (--invoice-no, --party-name, --item, ...).',
         )
       }
-      data = parseInvoiceText(stdinText)
-      if (flags.company) data.company = flags.company
+      input = parseToSalesInput(stdinText)
+      if (flags.company) input.company = flags.company
+      input = mergeFlagOverrides(input, flags)
     }
 
-    const outputPath = path.resolve(flags.output ?? safeFilename(data))
-
-    this.log(`Generating invoice PDF → ${outputPath}`)
-    await renderInvoicePdf(data, {outputPath})
-    this.log(`Done: ${outputPath}`)
+    await runInvoicePdfPipeline({input, output: flags.output, ui})
   }
 }
 
-// ─── Build InvoiceData from explicit flags ────────────────────────────────────
-
-function buildFromFlags(flags: Record<string, unknown>): InvoiceData {
-  const items = ((flags.item as string[] | undefined) ?? []).map((i) => parseItemFlag(i))
-  const taxableSum = items.reduce((sum, it) => {
-    const n = parseFloat(String(it.taxable).replace(/,/g, ''))
-    return sum + (isNaN(n) ? 0 : n)
-  }, 0)
-
+function mergeFlagOverrides(
+  base: SalesInvoiceInput,
+  flags: Record<string, unknown>,
+): SalesInvoiceInput {
+  const o = salesInputFromFlags(flags as Record<string, unknown>)
   return {
-    company: flags.company as string | undefined,
-    party: flags.party as string | undefined,
-    invoiceNo: flags['invoice-no'] as string | undefined,
-    date: flags.date as string | undefined,
-    voucherClass: flags['voucher-class'] as string | undefined,
-    narration: flags.narration as string | undefined,
-    items,
-    totals: {
-      taxable: taxableSum > 0 ? taxableSum.toFixed(2) : undefined,
-      grandTotal: taxableSum > 0 ? taxableSum.toFixed(2) : undefined,
-      tax: items[0]?.taxRate ?? undefined,
-    },
-  }
+    ...base,
+    ...Object.fromEntries(
+      Object.entries(o).filter(([, v]) => v !== undefined && v !== '' && v !== false),
+    ),
+  } as SalesInvoiceInput
 }
-
-// ─── Stdin helper (with 3 s timeout to avoid hanging in terminal) ─────────────
 
 async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) return ''
@@ -136,7 +133,6 @@ async function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     let data = ''
     const timer = setTimeout(() => resolve(''), 3000)
-
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', (chunk: string) => { data += chunk })
     process.stdin.on('end', () => {

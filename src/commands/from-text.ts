@@ -1,99 +1,85 @@
 import path from 'node:path'
 import {Command, Flags} from '@oclif/core'
 
-import {parseInvoiceText, detectDocType, safeFilename} from '../lib/parser.js'
-import {renderInvoicePdf, renderGenericPdf} from '../lib/renderer.js'
+import {parseToSalesInput, detectDocType} from '../lib/parser.js'
+import {runInvoicePdfPipeline} from '../lib/invoice-pipeline.js'
+import {resolveUiOptions} from '../lib/cli-ui.js'
+import {renderGenericPdf} from '../lib/renderer.js'
 
-/**
- * Magic command: accepts any raw text (WhatsApp message, Telegram forward, etc.),
- * auto-detects whether it is an invoice or a generic document, then generates the PDF.
- *
- * This is the single command OpenClaw should call when it does not know the document
- * type in advance. The detector checks for keywords like "invoice", "party name",
- * "HSN", "GST", "voucher" and routes automatically.
- */
 export default class FromText extends Command {
   static override description =
     'Auto-detect document type from raw text and generate a PDF.\n' +
-    'Supports invoice messages (WhatsApp / Telegram) and generic text documents.\n'
+    'Sales invoices use full field validation and GST auto-calculation.'
 
   static override examples = [
-    // Pipe raw WhatsApp invoice
-    `$ echo "Party Name: Rajat Build\\nInvoice No.: 186\\nDate: 2/1/2026\\nItem: PPC Cement 2523 @ 18%\\nQty: 140 Bag\\nRate: ₹279.66/Bag\\nHSN Code: 25322210\\nAmount: 39152.40\\nMake sure to use voucher class Sales @ 18 %" | <%= config.bin %> from-text --company "Gokul Traders" --output invoice_186.pdf`,
-
-    // Inline --text flag
-    `$ <%= config.bin %> from-text --text "Party Name: Rajat Build\\nInvoice No.: 186\\nAmount: 39152.40" --output invoice.pdf`,
-
-    // Generic document
-    `$ <%= config.bin %> from-text --text "Payment received from Rajat Build for ₹39152." --title "Receipt" --output receipt.pdf`,
+    `$ <%= config.bin %> from-text --company "ABC Traders" --text "Party Name: XYZ\\nInvoice No.: 186\\n..." --output invoice.pdf --no-interactive --json-errors`,
   ]
 
   static override flags = {
-    text: Flags.string({
-      char: 't',
-      description: 'Raw text to convert to PDF. Reads from stdin if not provided.',
-    }),
-    company: Flags.string({
-      char: 'c',
-      description: 'Company / seller name (used for invoice header when detected).',
-    }),
-    title: Flags.string({
-      description: 'Document title override (used for generic documents).',
-    }),
-    output: Flags.string({
-      char: 'o',
-      description: 'Output PDF path. Auto-generated if omitted.',
-    }),
+    text: Flags.string({char: 't', description: 'Raw text. Reads stdin if omitted.'}),
+    company: Flags.string({char: 'c', description: 'Seller / company name.'}),
+    'company-gstin': Flags.string({description: 'Seller GSTIN.'}),
+    title: Flags.string({description: 'Title for generic documents.'}),
+    output: Flags.string({char: 'o', description: 'Output PDF path.'}),
     type: Flags.string({
-      description: 'Force document type: "invoice" or "generic". Skip auto-detection.',
+      description: 'Force type: invoice | generic',
       options: ['invoice', 'generic'],
     }),
+    b2b: Flags.boolean({description: 'Treat as B2B (requires customer GSTIN in text/flags).', default: false}),
+    'no-interactive': Flags.boolean({description: 'No prompts (for agents).', default: false}),
+    'json-errors': Flags.boolean({description: 'JSON validation errors.', default: false}),
+    'no-ui': Flags.boolean({description: 'Plain output.', default: false}),
+    interactive: Flags.boolean({char: 'i', description: 'Prompt missing fields on TTY.', default: false}),
   }
 
   async run(): Promise<void> {
     const {flags} = await this.parse(FromText)
+    const ui = resolveUiOptions(flags)
 
-    // ── Resolve input text ─────────────────────────────────────────────────────
     let text = flags.text ?? ''
-
     if (!text && !process.stdin.isTTY) {
       text = await new Promise<string>((resolve) => {
         let buf = ''
         const timer = setTimeout(() => resolve(''), 3000)
         process.stdin.setEncoding('utf8')
-        process.stdin.on('data', (chunk: string) => { buf += chunk })
+        process.stdin.on('data', (c: string) => { buf += c })
         process.stdin.on('end', () => { clearTimeout(timer); resolve(buf.trim()) })
         process.stdin.on('error', () => { clearTimeout(timer); resolve('') })
       })
     }
 
     if (!text) {
-      this.error('No input text provided. Use --text "..." or pipe text via stdin.')
+      this.error('No input text. Use --text or pipe via stdin.')
     }
 
-    // ── Detect document type ───────────────────────────────────────────────────
     const docType = (flags.type as 'invoice' | 'generic' | undefined) ?? detectDocType(text)
-    this.log(`Detected document type: ${docType}`)
+
+    if (!ui.enabled) {
+      this.log(`Detected document type: ${docType}`)
+    }
 
     if (docType === 'invoice') {
-      const data = parseInvoiceText(text)
-      if (flags.company) data.company = flags.company
+      const input = parseToSalesInput(text)
+      if (flags.company) input.company = flags.company
+      if (flags['company-gstin']) input.companyGstin = flags['company-gstin']
+      if (flags.b2b) input.b2b = true
 
-      const outputPath = path.resolve(flags.output ?? safeFilename(data))
-      this.log(`Generating invoice PDF → ${outputPath}`)
-      await renderInvoicePdf(data, {outputPath})
-      this.log(`Done: ${outputPath}`)
+      await runInvoicePdfPipeline({input, output: flags.output, ui})
     } else {
       const title = flags.title ?? 'Document'
       const outputPath = path.resolve(
         flags.output ?? `${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`,
       )
-      this.log(`Generating generic PDF → ${outputPath}`)
       await renderGenericPdf(
         {title, body: text, generatedAt: new Date().toLocaleString('en-IN')},
         {outputPath},
       )
-      this.log(`Done: ${outputPath}`)
+      if (ui.enabled) {
+        const {printSuccess} = await import('../lib/cli-ui.js')
+        printSuccess(outputPath)
+      } else {
+        this.log(`Done: ${outputPath}`)
+      }
     }
   }
 }

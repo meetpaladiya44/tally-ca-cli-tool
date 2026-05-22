@@ -60,6 +60,63 @@ $env:TALLYCA_PDF_BACKEND = "pdfmake"
 tallyca from-text ...
 ```
 
+## Sales invoice field schema (v1.1.0+)
+
+The CLI is the **single source of truth**: it validates mandatory fields, computes taxable value and CGST/SGST/IGST, then renders the PDF. Agents should not pre-calculate tax splits.
+
+| Field | Rule | Notes |
+|-------|------|-------|
+| `invoice-no` | **required** | Hard error if missing |
+| `date` | **required** | Normalized to DD-MM-YYYY |
+| `party-name` | **required** | Bill-to name (`--party` alias) |
+| `place-of-supply` | **required** | State name or 2-digit code |
+| `hsn-code` | **required** | Per line item |
+| `item` | **required** | Description |
+| `qty` | **required** | Numeric |
+| `rate` | **required** | Per unit, numeric |
+| `unit` | **required** | Bag, Nos, etc. |
+| `gst-rate` | **required** | e.g. `18` |
+| `customer-gstin` | **conditional** | Required when `--b2b` |
+| `billing-address` | optional | Shown if present |
+| `discount` | optional | Default `0` |
+| `reverse-charge` | optional | Default `No` |
+| `total-value` | **auto** | `qty × rate − discount` |
+| `cgst` / `sgst` / `igst` | **auto** | Intra-state → CGST+SGST; inter-state → IGST |
+
+**Separate (not in schema):** `company` (seller header), optional `company-gstin`, `seller-state`, `voucher-class`, `narration`.
+
+**GST split:** Seller state from `--company-gstin` (first 2 digits) or `--seller-state`. Buyer state from `customer-gstin` (B2B) or `place-of-supply`. Same state → CGST/SGST; different → IGST. If seller state is unknown, CLI warns and assumes intra-state.
+
+### Agent / automation flags
+
+| Flag | Purpose |
+|------|---------|
+| `--no-interactive` | Never prompt (required for OpenClaw / pipes) |
+| `--json-errors` | Validation errors as JSON on stderr |
+| `TALLYCA_JSON_ERRORS=1` | Same as `--json-errors` |
+
+On validation failure the CLI exits with code **2**. Example stderr:
+
+```json
+{
+  "error": "validation",
+  "message": "Missing required invoice fields",
+  "missing": ["place-of-supply", "unit"],
+  "warnings": ["seller-state not set; assumed intra-state CGST/SGST"]
+}
+```
+
+Human stderr (default):
+
+```
+✖ Missing required fields: place-of-supply, unit
+  Required: invoice-no, date, party-name, place-of-supply, hsn-code, item, qty, rate, unit, gst-rate
+```
+
+### Interactive mode (TTY)
+
+When stdin is a TTY and `--no-interactive` is not set, use `--interactive` to prompt only for missing **required** fields (not auto-calculated totals or tax). Spinners and progress use chalk/ora unless `--no-ui` is set.
+
 ## Commands
 
 ### 1) Auto-detect & generate PDF (recommended)
@@ -105,26 +162,50 @@ Amount : 39152.40
 Make sure to use voucher class Sales @ 18 %."
 ```
 
-#### b) Structured flags (when you already extracted fields)
+#### b) Structured flags (recommended for agents)
 
 ```bash
 tallyca generate:invoice \
   --company "ABC Traders" \
-  --party "XYZ Build" \
+  --party-name "XYZ Build" \
   --invoice-no 186 \
   --date "2/1/2026" \
-  --voucher-class "Sales @ 18 %" \
-  --item "Ambuja Cement|140 Bag|279.66|18%|25322210" \
-  --output invoice_186.pdf
+  --place-of-supply "Uttar Pradesh" \
+  --item "Ambuja Cement" \
+  --qty 140 \
+  --unit Bag \
+  --rate 279.66 \
+  --hsn-code 25322210 \
+  --gst-rate 18 \
+  --company-gstin "09AAAAA0000A1Z5" \
+  --output invoice_186.pdf \
+  --no-interactive \
+  --json-errors
 ```
 
-`--item` format:
+**Backward-compatible `--item` pipe format** (still supported):
 
 ```
 Description|Qty Unit|Rate|Tax%|HSN
 ```
 
-Repeat `--item` multiple times for multiple line items.
+Example: `--item "Ambuja Cement|140 Bag|279.66|18%|25322210"` fills item, qty, unit, rate, gst-rate, and hsn-code.
+
+#### Invoice flags reference
+
+| Flag | Description |
+|------|-------------|
+| `--party-name` / `--party` | Buyer name (required) |
+| `--invoice-no`, `--date` | Required |
+| `--place-of-supply` | Required — state name or code |
+| `--customer-gstin` | Required with `--b2b` |
+| `--company-gstin`, `--seller-state` | Seller state for GST split |
+| `--item`, `--qty`, `--rate`, `--unit`, `--hsn-code`, `--gst-rate` | Line item (required) |
+| `--billing-address`, `--discount`, `--reverse-charge` | Optional |
+| `--b2b` | Requires customer GSTIN |
+| `--interactive` / `--no-interactive` | TTY prompts vs agent-safe |
+| `--json-errors` | Structured validation output |
+| `--no-ui` | Disable chalk/spinner/progress |
 
 ### 3) Generate generic PDF (receipts / notes)
 

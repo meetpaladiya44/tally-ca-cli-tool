@@ -1,6 +1,6 @@
 {
   "name": "tallyca",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "CLI to generate GST-compliant PDFs from raw WhatsApp/Telegram invoice text — no intermediate JSON file needed.",
   "type": "module",
   "bin": {
@@ -33,15 +33,23 @@
   ],
   "dependencies": {
     "@oclif/core": "^4.0.31",
+    "chalk": "^4.1.2",
     "handlebars": "^4.7.8",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1",
     "pdfmake": "^0.2.15",
-    "playwright": "^1.56.1"
+    "playwright": "^1.56.1",
+    "progress": "^2.0.3",
+    "validator": "^13.11.0"
   },
   "devDependencies": {
     "@oclif/prettier-config": "^0.2.1",
     "@types/handlebars": "^4.1.0",
+    "@types/inquirer": "^8.2.10",
     "@types/node": "^22.0.0",
     "@types/pdfmake": "^0.2.9",
+    "@types/progress": "^2.0.7",
+    "@types/validator": "^13.11.9",
     "oclif": "^4.15.0",
     "shx": "^0.3.4",
     "typescript": "^5.5.0"
