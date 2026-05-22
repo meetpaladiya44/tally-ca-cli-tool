@@ -80,12 +80,15 @@ export async function renderGenericPdfMake(data: GenericData, outputPath: string
 
 function buildInvoiceDoc(data: Record<string, unknown>): TDocumentDefinitions {
   const company = data.company as string | undefined
+  const companyGstin = data.companyGstin as string | undefined
+  const companyAddress = data.companyAddress as string | undefined
   const party = (data.party ?? data.partyName) as string | undefined
   const invoiceNo = data.invoiceNo as string | undefined
   const date = data.date as string | undefined
   const voucherClass = data.voucherClass as string | undefined
   const narration = data.narration as string | undefined
   const billingAddress = data.billingAddress as string | undefined
+  const shippingAddress = data.shippingAddress as string | undefined
   const customerGstin = data.customerGstin as string | undefined
   const placeOfSupply = data.placeOfSupply as string | undefined
   const reverseCharge = data.reverseCharge as string | undefined
@@ -204,10 +207,31 @@ function buildInvoiceDoc(data: Record<string, unknown>): TDocumentDefinitions {
     ],
   })
 
+  // Company header with address and GSTIN
+  const companyStack: Content[] = [
+    {text: company ?? '—', style: 'company'},
+  ]
+  if (companyAddress) {
+    companyStack.push({
+      text: companyAddress,
+      fontSize: 8,
+      color: '#555555',
+      margin: [0, 2, 0, 0],
+    })
+  }
+  if (companyGstin) {
+    companyStack.push({
+      text: `GSTIN: ${companyGstin}`,
+      fontSize: 9,
+      color: '#666666',
+      margin: [0, 2, 0, 0],
+    })
+  }
+
   const content: Content[] = [
     {
       columns: [
-        {width: '*', text: company ?? '—', style: 'company'},
+        {width: '*', stack: companyStack},
         {width: 'auto', stack: headerRightStack},
       ],
       margin: [0, 0, 0, 8],
@@ -254,6 +278,34 @@ function buildInvoiceDoc(data: Record<string, unknown>): TDocumentDefinitions {
       columnGap: 10,
     },
   ]
+
+  // Add Ship To section if shipping address is provided
+  if (shippingAddress) {
+    const shipToStack: Content[] = [
+      {text: 'SHIP TO', style: 'boxTitle', margin: [0, 0, 0, 4]},
+      {
+        text: shippingAddress,
+        fontSize: 8,
+        color: '#555555',
+      },
+    ]
+    content.push({
+      table: {
+        widths: ['*'],
+        body: [
+          [
+            {
+              stack: shipToStack,
+              fillColor: '#f7f8fd',
+              margin: [8, 8, 8, 8],
+            },
+          ],
+        ],
+      },
+      layout: boxLayout(),
+      margin: [0, 10, 0, 0],
+    })
+  }
 
   if (narration) {
     content.push({

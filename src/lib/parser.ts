@@ -10,6 +10,7 @@ export interface InvoiceItem {
   description: string
   hsn?: string
   qty: string
+  unit?: string
   rate: string
   taxRate: string
   taxable: string
@@ -48,6 +49,19 @@ function extractField(text: string, ...patterns: RegExp[]): string | undefined {
     if (m?.[1]) return clean(m[1])
   }
   return undefined
+}
+
+/** Extract ALL matches for a field and return the last one (useful for Party Name where first may be company) */
+function extractLastField(text: string, ...patterns: RegExp[]): string | undefined {
+  let last: string | undefined
+  for (const pattern of patterns) {
+    const globalPattern = new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g')
+    let m
+    while ((m = globalPattern.exec(text)) !== null) {
+      if (m[1]) last = clean(m[1])
+    }
+  }
+  return last
 }
 
 function normaliseDate(raw: string): string {
@@ -115,12 +129,14 @@ export function parseToSalesInput(text: string): SalesInvoiceInput {
       /company\s*[:–-]\s*(.+?)(?:\n|$)/i,
     ) ?? undefined
 
+  // Use extractLastField to get the LAST Party Name match (first may be company/seller reference)
   const partyName =
-    extractField(
+    extractLastField(
       text,
       /party\s*(?:name)?\s*[:–-]\s*(.+?)(?:\n|$)/i,
-      /customer\s*[:–-]\s*(.+?)(?:\n|$)/i,
-    ) ?? undefined
+    ) ??
+    extractField(text, /customer\s*[:–-]\s*(.+?)(?:\n|$)/i) ??
+    undefined
 
   const invoiceNo =
     extractField(
@@ -139,18 +155,33 @@ export function parseToSalesInput(text: string): SalesInvoiceInput {
       /pos\s*[:–-]\s*(.+?)(?:\n|$)/i,
     ) ?? undefined
 
+  // Customer GSTIN - explicit customer/party/buyer label only (no generic gstin fallback)
   const customerGstin =
     extractField(
       text,
       /(?:customer|party|buyer)\s*gstin\s*[:–-]\s*([0-9A-Z]{15})/i,
-      /gstin\s*[:–-]\s*([0-9A-Z]{15})/i,
     ) ?? undefined
 
+  // Company/Supplier GSTIN - includes "Supplier GSTIN" pattern
   const companyGstin =
-    extractField(text, /(?:company|seller)\s*gstin\s*[:–-]\s*([0-9A-Z]{15})/i) ?? undefined
+    extractField(
+      text,
+      /(?:supplier|company|seller)\s*gstin\s*[:–-]\s*([0-9A-Z]{15})/i,
+    ) ?? undefined
 
+  // Billing address
   const billingAddress =
     extractField(text, /billing\s*address\s*[:–-]\s*(.+?)(?:\n\n|\n(?=[A-Z])|$)/i) ??
+    undefined
+
+  // Shipping address
+  const shippingAddress =
+    extractField(text, /shipping\s*address\s*[:–-]\s*(.+?)(?:\n\n|\n(?=[A-Z])|$)/i) ??
+    undefined
+
+  // Company/Supplier address
+  const companyAddress =
+    extractField(text, /(?:supplier|company|seller)\s*address\s*[:–-]\s*(.+?)(?:\n\n|\n(?=[A-Z])|$)/i) ??
     undefined
 
   const discountStr = extractField(text, /discount\s*[:–-]\s*[₹]?\s*([\d.,]+)/i)
@@ -166,12 +197,14 @@ export function parseToSalesInput(text: string): SalesInvoiceInput {
   const base: SalesInvoiceInput = {
     company,
     companyGstin,
+    companyAddress,
     invoiceNo,
     date,
     partyName,
     placeOfSupply,
     customerGstin,
     billingAddress,
+    shippingAddress,
     discount: discountStr,
     reverseCharge,
     voucherClass,
@@ -199,9 +232,11 @@ function extractItemFromText(text: string): InvoiceItem | null {
     taxRate = atMatch[2] + '%'
   }
 
+  // Extract qty with robust pattern: "Qty : 140 Bag" or "Qty: 140"
+  // Capture full quantity including unit if present (number followed by optional word starting with letter)
   const qtyRaw =
-    extractField(text, /qty\s*[:–-]\s*([\d.]+\s*\w+)/i) ??
-    extractField(text, /quantity\s*[:–-]\s*([\d.]+\s*\w+)/i) ??
+    extractField(text, /qty\s*[:–-]\s*(\d+(?:\.\d+)?(?:\s+[A-Za-z][A-Za-z0-9]*)?)/i) ??
+    extractField(text, /quantity\s*[:–-]\s*(\d+(?:\.\d+)?(?:\s+[A-Za-z][A-Za-z0-9]*)?)/i) ??
     ''
 
   const rate =
@@ -220,20 +255,29 @@ function extractItemFromText(text: string): InvoiceItem | null {
     if (taxRate && !taxRate.endsWith('%')) taxRate += '%'
   }
 
-  const unitOnly = extractField(text, /unit\s*[:–-]\s*(\w+)/i)
-
+  // First split qty to get qty and unit from the qty line itself
   let qty = qtyRaw
-  let unit = unitOnly ?? ''
+  let unit = ''
   if (qtyRaw) {
     const split = splitQtyUnit(qtyRaw)
     qty = split.qty
-    if (!unit) unit = split.unit
+    unit = split.unit
+  }
+
+  // Only use standalone "Unit:" line as fallback if qty line didn't have a valid unit
+  // And only if the unit value looks like an actual unit (starts with letter, not a number)
+  if (!unit || unit === 'Nos') {
+    const unitOnly = extractField(text, /\bunit\s*[:–-]\s*([A-Za-z][A-Za-z0-9]*)/i)
+    if (unitOnly) {
+      unit = unitOnly
+    }
   }
 
   return {
     description,
     hsn,
     qty,
+    unit,
     rate: splitRate(rate),
     taxRate,
     taxable: amount,
@@ -279,6 +323,7 @@ export function salesInputFromFlags(flags: Record<string, unknown>): SalesInvoic
   let merged: SalesInvoiceInput = {
     company: flags.company as string | undefined,
     companyGstin: flags['company-gstin'] as string | undefined,
+    companyAddress: flags['company-address'] as string | undefined,
     sellerState: flags['seller-state'] as string | undefined,
     invoiceNo: (flags['invoice-no'] as string | undefined) ?? undefined,
     date: flags.date as string | undefined,
@@ -288,6 +333,7 @@ export function salesInputFromFlags(flags: Record<string, unknown>): SalesInvoic
     placeOfSupply: flags['place-of-supply'] as string | undefined,
     customerGstin: flags['customer-gstin'] as string | undefined,
     billingAddress: flags['billing-address'] as string | undefined,
+    shippingAddress: flags['shipping-address'] as string | undefined,
     discount: flags.discount as string | number | undefined,
     reverseCharge: flags['reverse-charge'] as string | undefined,
     b2b: Boolean(flags.b2b),

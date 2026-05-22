@@ -42,6 +42,7 @@ export const REQUIRED_INVOICE_FIELDS: InvoiceFieldKey[] = [
 export interface SalesInvoiceInput {
   company?: string
   companyGstin?: string
+  companyAddress?: string
   sellerState?: string
   invoiceNo?: string
   date?: string
@@ -55,6 +56,7 @@ export interface SalesInvoiceInput {
   unit?: string
   gstRate?: string
   billingAddress?: string
+  shippingAddress?: string
   discount?: number | string
   reverseCharge?: string
   b2b?: boolean
@@ -65,6 +67,7 @@ export interface SalesInvoiceInput {
 export interface SalesInvoiceData {
   company?: string
   companyGstin?: string
+  companyAddress?: string
   invoiceNo: string
   date: string
   partyName: string
@@ -72,6 +75,7 @@ export interface SalesInvoiceData {
   placeOfSupplyCode: string
   customerGstin?: string
   billingAddress?: string
+  shippingAddress?: string
   reverseCharge: string
   discount: number
   item: string
@@ -284,6 +288,7 @@ export function validateAndCompute(input: SalesInvoiceInput): SalesInvoiceData {
   return {
     company: input.company,
     companyGstin: input.companyGstin,
+    companyAddress: input.companyAddress?.trim(),
     invoiceNo: input.invoiceNo!.trim(),
     date: normaliseDate(input.date!.trim()),
     partyName: input.partyName!.trim(),
@@ -291,6 +296,7 @@ export function validateAndCompute(input: SalesInvoiceInput): SalesInvoiceData {
     placeOfSupplyCode: posCode,
     customerGstin: input.customerGstin?.trim().toUpperCase(),
     billingAddress: input.billingAddress?.trim(),
+    shippingAddress: input.shippingAddress?.trim(),
     reverseCharge: /^y(es)?$/i.test(input.reverseCharge?.trim() ?? '') ? 'Yes' : 'No',
     discount,
     item: input.item!.trim(),
@@ -317,10 +323,18 @@ export function inputFromLegacyItem(item: {
   description: string
   hsn?: string
   qty: string
+  unit?: string
   rate: string
   taxRate: string
 }): Partial<SalesInvoiceInput> {
-  const {qty, unit} = splitQtyUnit(item.qty)
+  // If unit is already provided, use it directly. Otherwise try to extract from qty.
+  let qty = item.qty
+  let unit = item.unit
+  if (!unit) {
+    const split = splitQtyUnit(item.qty)
+    qty = split.qty
+    unit = split.unit
+  }
   return {
     item: item.description,
     hsnCode: item.hsn,
@@ -335,6 +349,7 @@ export function salesInvoiceToRenderContext(data: SalesInvoiceData): Record<stri
   return {
     company: data.company,
     companyGstin: data.companyGstin,
+    companyAddress: data.companyAddress,
     party: data.partyName,
     partyName: data.partyName,
     reverseCharge: data.reverseCharge,
@@ -343,6 +358,7 @@ export function salesInvoiceToRenderContext(data: SalesInvoiceData): Record<stri
     voucherClass: data.voucherClass,
     narration: data.narration,
     billingAddress: data.billingAddress,
+    shippingAddress: data.shippingAddress,
     customerGstin: data.customerGstin,
     placeOfSupply: data.placeOfSupply,
     discount: data.discount,

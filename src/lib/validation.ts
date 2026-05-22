@@ -46,11 +46,14 @@ export function normalizeGstRate(value: string | undefined): string | undefined 
 
 /** Split "140 Bag" → { qty: "140", unit: "Bag" } */
 export function splitQtyUnit(combined: string): {qty: string; unit: string} {
-  const m = /^([\d.,]+)\s*(.+)$/.exec(combined.trim())
+  const trimmed = combined.trim()
+  // Match number followed by whitespace and non-digit unit
+  const m = /^([\d.,]+)\s+([A-Za-z]\S*)/.exec(trimmed)
   if (m) return {qty: m[1].trim(), unit: m[2].trim()}
-  const num = combined.match(/^[\d.,]+/)?.[0]
-  if (num) return {qty: num, unit: combined.slice(num.length).trim() || 'Nos'}
-  return {qty: combined, unit: 'Nos'}
+  // Fallback: just extract the number part
+  const num = trimmed.match(/^[\d.,]+/)?.[0]
+  if (num) return {qty: num, unit: trimmed.slice(num.length).trim() || 'Nos'}
+  return {qty: trimmed, unit: 'Nos'}
 }
 
 /** Split rate like "279.66/Bag" → { rate: "279.66", unit hint optional } */

@@ -19,6 +19,7 @@ export default class FromText extends Command {
     text: Flags.string({char: 't', description: 'Raw text. Reads stdin if omitted.'}),
     company: Flags.string({char: 'c', description: 'Seller / company name.'}),
     'company-gstin': Flags.string({description: 'Seller GSTIN.'}),
+    'company-address': Flags.string({description: 'Seller / supplier address.'}),
     title: Flags.string({description: 'Title for generic documents.'}),
     output: Flags.string({char: 'o', description: 'Output PDF path.'}),
     type: Flags.string({
@@ -62,6 +63,7 @@ export default class FromText extends Command {
       const input = parseToSalesInput(text)
       if (flags.company) input.company = flags.company
       if (flags['company-gstin']) input.companyGstin = flags['company-gstin']
+      if (flags['company-address']) input.companyAddress = flags['company-address']
       if (flags.b2b) input.b2b = true
 
       await runInvoicePdfPipeline({input, output: flags.output, ui})

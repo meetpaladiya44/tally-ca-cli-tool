@@ -65,6 +65,7 @@
   <div class="header">
     <div class="company-block">
       <h1>{{#if company}}{{company}}{{else}}—{{/if}}</h1>
+      {{#if companyAddress}}<div class="addr" style="margin-top:2px;">{{companyAddress}}</div>{{/if}}
       {{#if companyGstin}}<div style="font-size:9px;color:#666;margin-top:2px;">GSTIN: {{companyGstin}}</div>{{/if}}
     </div>
     <div class="doc-type">
@@ -88,6 +89,15 @@
       <div class="row"><span class="key">Reverse Charge</span><span class="val">{{reverseCharge}}</span></div>
     </div>
   </div>
+
+  {{#if shippingAddress}}
+  <div class="meta-grid" style="margin-bottom: 12px;">
+    <div class="meta-box">
+      <div class="box-title">Ship To</div>
+      <div class="addr">{{shippingAddress}}</div>
+    </div>
+  </div>
+  {{/if}}
 
   {{#if narration}}<div class="narration"><strong>Narration:</strong> {{narration}}</div>{{/if}}
 

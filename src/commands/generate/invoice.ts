@@ -24,6 +24,7 @@ export default class GenerateInvoice extends Command {
     }),
     company: Flags.string({char: 'c', description: 'Seller / company name on invoice header.'}),
     'company-gstin': Flags.string({description: 'Seller GSTIN (used for CGST/SGST vs IGST).'}),
+    'company-address': Flags.string({description: 'Seller / supplier address.'}),
     'seller-state': Flags.string({description: 'Seller state name or 2-digit code (if no company GSTIN).'}),
     party: Flags.string({char: 'p', description: 'Buyer / party name (alias: --party-name).'}),
     'party-name': Flags.string({description: 'Buyer / party name.'}),
@@ -42,6 +43,7 @@ export default class GenerateInvoice extends Command {
     unit: Flags.string({description: 'Unit e.g. Bag, Nos (required).'}),
     'gst-rate': Flags.string({description: 'GST rate % e.g. 18 (required).'}),
     'billing-address': Flags.string({description: 'Optional billing address.'}),
+    'shipping-address': Flags.string({description: 'Optional shipping address.'}),
     discount: Flags.string({description: 'Discount amount (default 0).'}),
     'reverse-charge': Flags.string({description: 'Reverse charge: Yes or No (default No).'}),
     b2b: Flags.boolean({description: 'B2B invoice — requires --customer-gstin.', default: false}),
@@ -114,17 +116,68 @@ export default class GenerateInvoice extends Command {
   }
 }
 
+/**
+ * Merge flag values into text-parsed input.
+ * Fill-missing-only for text-parsed fields (qty, unit, rate, item, etc.)
+ * Always apply operational flags (company, companyGstin, b2b, sellerState)
+ */
 function mergeFlagOverrides(
   base: SalesInvoiceInput,
   flags: Record<string, unknown>,
 ): SalesInvoiceInput {
   const o = salesInputFromFlags(flags as Record<string, unknown>)
-  return {
-    ...base,
-    ...Object.fromEntries(
-      Object.entries(o).filter(([, v]) => v !== undefined && v !== '' && v !== false),
-    ),
-  } as SalesInvoiceInput
+
+  // Operational flags always override (not parsed from text or always apply)
+  const alwaysApply: (keyof SalesInvoiceInput)[] = [
+    'company',
+    'companyGstin',
+    'companyAddress',
+    'sellerState',
+    'b2b',
+  ]
+
+  // Text-parsed fields: only fill if base is missing/empty
+  const fillMissingOnly: (keyof SalesInvoiceInput)[] = [
+    'invoiceNo',
+    'date',
+    'partyName',
+    'placeOfSupply',
+    'customerGstin',
+    'hsnCode',
+    'item',
+    'qty',
+    'rate',
+    'unit',
+    'gstRate',
+    'billingAddress',
+    'shippingAddress',
+    'discount',
+    'reverseCharge',
+    'voucherClass',
+    'narration',
+  ]
+
+  const result: SalesInvoiceInput = {...base}
+
+  // Apply operational flags (always)
+  for (const key of alwaysApply) {
+    const val = o[key]
+    if (val !== undefined && val !== '' && val !== false) {
+      ;(result as Record<string, unknown>)[key] = val
+    }
+  }
+
+  // Fill missing text-parsed fields only
+  for (const key of fillMissingOnly) {
+    const baseVal = base[key]
+    const flagVal = o[key]
+    const baseEmpty = baseVal === undefined || baseVal === '' || baseVal === null
+    if (baseEmpty && flagVal !== undefined && flagVal !== '' && flagVal !== false) {
+      ;(result as Record<string, unknown>)[key] = flagVal
+    }
+  }
+
+  return result
 }
 
 async function readStdin(): Promise<string> {
